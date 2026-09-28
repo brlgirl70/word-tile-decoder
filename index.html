@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Tile Decoder</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f4f6f9;color:#222}
+header{background:#fff;padding:18px 24px;border-bottom:1px solid #ddd}
+h1{margin:0;font-size:30px}
+main{max-width:950px;margin:auto;padding:20px}
+.card{background:#fff;border:1px solid #ddd;border-radius:18px;padding:24px;margin-bottom:18px}
+.controls{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+select{font-size:18px;padding:10px;border:2px solid #777;border-radius:9px;background:#fff}
+.instructions{text-align:center;font-size:21px;line-height:1.5}
+.target{text-align:center;font-size:58px;font-weight:bold;letter-spacing:3px;margin:25px 0}
+.slots,.tiles,.buttons{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:12px;margin:18px 0}
+.slot{min-width:90px;height:78px;border:3px dashed #888;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:31px;font-weight:bold;background:#fafafa;cursor:pointer}
+.slot.filled{border-style:solid;background:#fff}
+.tile{min-width:80px;height:72px;padding:8px 14px;font-size:29px;font-weight:bold;border:2px solid #777;border-radius:14px;background:#fff;cursor:pointer}
+button{font:inherit;padding:12px 18px;border:2px solid #777;border-radius:14px;background:#fff;font-weight:bold;cursor:pointer}
+.primary{background:#333;color:#fff;border-color:#333}
+.feedback{min-height:34px;text-align:center;font-size:22px;font-weight:bold;margin:15px}
+.good{color:#176b43}.try{color:#9a3412}
+.progress{height:12px;background:#ddd;border-radius:8px;overflow:hidden;margin-top:12px}
+.bar{height:100%;width:0;background:#555}
+.small{color:#666;font-size:15px;line-height:1.5}
+.readbox{border-top:1px solid #ddd;margin-top:24px;padding-top:20px;text-align:center}
+.readword{font-size:42px;font-weight:bold;margin:15px}
+.chunk{display:inline-block;margin:4px;padding:8px 12px;border:2px solid #777;border-radius:10px;font-size:28px;font-weight:bold;background:#fafafa}
+</style>
+</head>
+<body>
+<header><h1>Word Tile Decoder</h1></header>
+<main>
+
+<div class="card">
+  <div class="controls">
+    <label><strong>Level:</strong>
+      <select id="level">
+        <option value="0">Level 1 — CVC</option>
+        <option value="1">Level 2 — Digraphs</option>
+        <option value="2">Level 3 — Blends</option>
+        <option value="3">Level 4 — Ending Blocks</option>
+        <option value="4">Level 5 — Longer Words</option>
+      </select>
+    </label>
+    <label id="endingBox" style="display:none"><strong>Ending:</strong>
+      <select id="ending">
+        <option value="ing">ING</option>
+        <option value="all">ALL</option>
+        <option value="ock">OCK</option>
+      </select>
+    </label>
+    <span id="count"></span>
+  </div>
+  <p id="description" class="small"></p>
+  <div class="progress"><div id="bar" class="bar"></div></div>
+</div>
+
+<div class="card">
+  <div class="instructions">
+    <strong>LOOK → BUILD → SAY</strong><br>
+    Look at the whole word. Build it with the tiles.<br>
+    Then point to each part and say the word.
+  </div>
+
+  <div id="target" class="target"></div>
+  <div id="slots" class="slots"></div>
+  <div id="tiles" class="tiles"></div>
+
+  <div id="feedback" class="feedback"></div>
+
+  <div class="buttons">
+    <button id="check" class="primary">Check My Build</button>
+    <button id="clear">Clear</button>
+  </div>
+
+  <div id="readbox" class="readbox" style="display:none">
+    <div class="small">Point to each part as you read the word.</div>
+    <div id="chunks"></div>
+    <div id="readword" class="readword"></div>
+    <div class="buttons">
+      <button id="said" class="primary">I Said It</button>
+      <button id="again">Try Again</button>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Quick Teacher Data</h2>
+  <p class="small">This is supported practice because the target word remains visible. It is not an independent decoding assessment.</p>
+  <div class="buttons">
+    <button id="buildIndependent">Build: Independent</button>
+    <button id="buildPrompt">Build: Prompt</button>
+    <button id="readCorrect">Read: Correct</button>
+    <button id="readPrompt">Read: Prompt</button>
+  </div>
+  <div id="results" class="small">No data recorded yet.</div>
+  <div class="buttons"><button id="resetData">Reset Data</button></div>
+</div>
+
+</main>
+
+<script>
+const data = [
+{
+ name:"Level 1 — CVC",
+ desc:"Build simple three-letter words with individual letter tiles.",
+ words:[
+ ["cat",["c","a","t"]],["map",["m","a","p"]],["sit",["s","i","t"]],
+ ["sun",["s","u","n"]],["dog",["d","o","g"]],["run",["r","u","n"]],
+ ["bed",["b","e","d"]],["pig",["p","i","g"]],["top",["t","o","p"]],
+ ["man",["m","a","n"]]
+ ]
+},
+{
+ name:"Level 2 — Digraphs",
+ desc:"Build words using common digraphs as one tile.",
+ words:[
+ ["ship",["sh","i","p"]],["shop",["sh","o","p"]],["chin",["ch","i","n"]],
+ ["chat",["ch","a","t"]],["thin",["th","i","n"]],["that",["th","a","t"]],
+ ["when",["wh","e","n"]],["fish",["f","i","sh"]],["much",["m","u","ch"]],
+ ["duck",["d","u","ck"]]
+ ]
+},
+{
+ name:"Level 3 — Blends",
+ desc:"Build words using beginning blends as one tile.",
+ words:[
+ ["stop",["st","o","p"]],["step",["st","e","p"]],["spin",["sp","i","n"]],
+ ["spot",["sp","o","t"]],["brag",["br","a","g"]],["bring",["br","i","ng"]],
+ ["trip",["tr","i","p"]],["trap",["tr","a","p"]],["crab",["cr","a","b"]],
+ ["frog",["fr","o","g"]]
+ ]
+},
+{
+ name:"Level 4 — Ending Blocks",
+ desc:"Practice a repeated word ending as ONE visual tile.",
+ endings:{
+  ing:[
+   ["sing",["s","ing"]],["ring",["r","ing"]],["king",["k","ing"]],
+   ["wing",["w","ing"]],["bring",["br","ing"]],["swing",["sw","ing"]],
+   ["string",["str","ing"]],["spring",["spr","ing"]]
+  ],
+  all:[
+   ["ball",["b","all"]],["fall",["f","all"]],["call",["c","all"]],
+   ["tall",["t","all"]],["small",["sm","all"]],["stall",["st","all"]],
+   ["wall",["w","all"]]
+  ],
+  ock:[
+   ["rock",["r","ock"]],["sock",["s","ock"]],["lock",["l","ock"]],
+   ["dock",["d","ock"]],["block",["bl","ock"]],["clock",["cl","ock"]],
+   ["shock",["sh","ock"]]
+  ]
+ }
+},
+{
+ name:"Level 5 — Longer Words",
+ desc:"Build longer words using meaningful chunks.",
+ words:[
+ ["sunset",["sun","set"]],["rabbit",["rab","bit"]],["picnic",["pic","nic"]],
+ ["helping",["help","ing"]],["jumping",["jump","ing"]],["basket",["bas","ket"]],
+ ["napkin",["nap","kin"]],["playful",["play","ful"]],["sunshine",["sun","shine"]],
+ ["running",["run","ning"]]
+ ]
+}
+];
+
+let level=0,index=0,built=[],results=[];
+const $=id=>document.getElementById(id);
+
+function shuffle(a){return a.sort(()=>Math.random()-0.5)}
+function words(){
+ return level===3 ? data[3].endings[$("ending").value] : data[level].words;
+}
+function render(){
+ const list=words(), item=list[index], parts=item[1];
+ $("target").textContent=item[0].toUpperCase();
+ $("count").textContent="Word "+(index+1)+" of "+list.length;
+ $("description").textContent=data[level].desc;
+ $("bar").style.width=(index/list.length*100)+"%";
+ $("feedback").textContent="";
+ $("feedback").className="feedback";
+ $("readbox").style.display="none";
+
+ $("slots").innerHTML="";
+ parts.forEach((p,i)=>{
+  const s=document.createElement("div");
+  s.className="slot"+(built[i]?" filled":"");
+  s.textContent=built[i]?built[i].toUpperCase():"";
+  if(built[i]) s.onclick=()=>{built.splice(i,1);render()};
+  $("slots").appendChild(s);
+ });
+
+ const pool=["a","e","i","o","u","b","c","d","f","g","h","j","k","l","m","n","p","r","s","t","w",
+             "br","bl","cl","cr","fr","sp","st","sw","tr","sh","ch","th","wh","ng","ing","all","ock"];
+ const distractors=shuffle(pool.filter(x=>!parts.includes(x))).slice(0,4);
+ const tileSet=shuffle([...parts,...distractors]);
+
+ $("tiles").innerHTML="";
+ tileSet.forEach(t=>{
+  const b=document.createElement("button");
+  b.className="tile";
+  b.textContent=t.toUpperCase();
+  b.onclick=()=>{if(built.length<parts.length){built.push(t);render()}};
+  $("tiles").appendChild(b);
+ });
+}
+function showRead(){
+ const item=words()[index];
+ $("readbox").style.display="block";
+ $("readword").textContent=item[0].toUpperCase();
+ $("chunks").innerHTML="";
+ item[1].forEach(p=>{
+  const span=document.createElement("span");
+  span.className="chunk";
+  span.textContent=p.toUpperCase();
+  $("chunks").appendChild(span);
+ });
+}
+$("level").onchange=()=>{
+ level=Number($("level").value); index=0; built=[]; results=[];
+ $("endingBox").style.display=level===3?"inline-block":"none";
+ render(); showResults();
+};
+$("ending").onchange=()=>{index=0;built=[];render()};
+$("clear").onclick=()=>{built=[];render()};
+$("check").onclick=()=>{
+ const item=words()[index];
+ if(JSON.stringify(built)===JSON.stringify(item[1])){
+  $("feedback").textContent="Great! You built the word correctly.";
+  $("feedback").className="feedback good";
+  showRead();
+ }else{
+  $("feedback").textContent="Look again. Check each part of the word.";
+  $("feedback").className="feedback try";
+ }
+};
+$("said").onclick=()=>{
+ results.push(words()[index][0].toUpperCase()+" — said after building");
+ showResults(); nextWord();
+};
+$("again").onclick=()=>{
+ $("feedback").textContent="Point to each part and try the word again.";
+ $("feedback").className="feedback try";
+};
+function record(text){
+ results.push(words()[index][0].toUpperCase()+" — "+text);
+ showResults();
+}
+$("buildIndependent").onclick=()=>record("build independent");
+$("buildPrompt").onclick=()=>record("build needed prompt");
+$("readCorrect").onclick=()=>record("read correct");
+$("readPrompt").onclick=()=>record("read needed prompt");
+function nextWord(){
+ const list=words();
+ if(index<list.length-1){index++;built=[];render()}
+ else{
+  $("feedback").textContent="You finished this set!";
+  $("feedback").className="feedback good";
+ }
+}
+function showResults(){
+ $("results").innerHTML=results.length ? results.map(x=>"<div>"+x+"</div>").join("") : "No data recorded yet.";
+}
+$("resetData").onclick=()=>{results=[];index=0;built=[];render();showResults()};
+render();
+</script>
+</body>
+</html>
